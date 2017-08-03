@@ -4,9 +4,13 @@
 # 
 do not a login, browser will pop up a dialog to input user & pass
 browser will keep that duo
-user:pass will be encoded to header each request,
+user:pass will be encoded under base64 inside header each request,
 no session, no cookie,
 https://Aladdin:OpenSesame@www.example.com/index.html has been deprecated
+
+#
+server -> client: WWW-Authenticate: Basic realm="User Visible Realm"
+client -> server: Authorization: Basic QWxhZGRpbjpPcGVuU2VzYW1l 
 
 
 # 
