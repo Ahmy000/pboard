@@ -18,6 +18,12 @@ https://en.wikipedia.org/wiki/Basic_access_authentication
 
 ## https
 
+# 
+private, certificate, and csr(Certificate Signing Request),
+
+#
+openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout selfkey.pem -out selfcert.pem
+
 #
 
 # this does not work for me
