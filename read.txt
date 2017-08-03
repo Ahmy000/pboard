@@ -1,1 +1,20 @@
 
+
+## http basic auth
+# 
+do not a login, browser will pop up a dialog to input user & pass
+browser will keep that duo
+user:pass will be encoded to header each request,
+no session, no cookie,
+https://Aladdin:OpenSesame@www.example.com/index.html has been deprecated
+
+
+# 
+https://en.wikipedia.org/wiki/Basic_access_authentication
+
+## https
+
+#
+
+# this does not work for me
+https://docs.nodejitsu.com/articles/HTTP/servers/how-to-create-a-HTTPS-server/
