@@ -28,3 +28,6 @@ openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout selfkey.pem -o
 
 # this does not work for me
 https://docs.nodejitsu.com/articles/HTTP/servers/how-to-create-a-HTTPS-server/
+
+## certbot
+certbot certonly --standalone -d example.com -d www.example.com
