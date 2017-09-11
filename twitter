@@ -2,3 +2,35 @@ var accessToken = "22631296-Lu3Di3lXzw0ymxUV4c5M0qwKjB7nTojYHc9Kn2IsQ"
 var accessTokenSec = "MKKvhhwGBsugCL5KzGZG4APrymARJvGj46oUkxEPG79H8"
 consumerKey: "ebiIqPGV8XQfSC7hZZp1lT5Or",
 consumerSecret: "hc8tT5GMU47g5JFDIW7E8sCwx0yNMlmWiTdfe9018hvkQKsvhe",
+
+ func fetchTimeline(api: String, parameters: [String: String], completion: @escaping CompletionTweetsBlock) {
+        guard let oauthswift = self.oauthswift else { return }
+
+        func parse(_ jsons: [JSONItem]){
+            var tweets: Set<TweetV1> = []
+            for json in jsons{
+                let id = Int(json["id_str"] as! String)!
+                let text = json["text"] as! String
+                let favc = json["favorite_count"] as! Int
+                var userId: Int = 0
+                if let user = json["user"] as? JSONItem {
+                    userId = user["id"] as! Int
+                }
+                let tweet = TweetV1(idst: id, text: text, favc: favc, userId: userId)
+                tweets.insert(tweet)
+            }
+            
+            completion(tweets)
+        }
+        
+        let _ = oauthswift.client.get(api, parameters:  ["include_rts" : "0",
+                                                         "trim_user" : "1",
+                                                         "count" : "20"],
+            success: { response in
+                let jsonDict = try? response.jsonObject()
+                let tweets = jsonDict as? [JSONItem]
+                parse(tweets!)
+        }, failure: { error in
+            print(error)
+        })
+    }
