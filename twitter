@@ -1,10 +1,178 @@
 
-consumerKey: "ebiIqPGV8XQfSC7hZZp1lT5Or",
-consumerSecret: "hc8tT5GMU47g5JFDIW7E8sCwx0yNMlmWiTdfe9018hvkQKsvhe",
+import UIKit
+import OAuthSwift
+import Security
 
- func fetchTimeline(api: String, parameters: [String: String], completion: @escaping CompletionTweetsBlock) {
+
+let consumerKey = "ebiIqPGV8XQfSC7hZZp1lT5Or"
+let consumerSec = "hc8tT5GMU47g5JFDIW7E8sCwx0yNMlmWiTdfe9018hvkQKsvhe"
+
+struct TweetV1: Hashable {
+    let idst: Int  // id_str
+    let text: String // text
+    let favc: Int    // favorite_count
+    let userId: Int
+    let time: Date?
+    // MARK: Hashable
+    
+    var hashValue: Int {
+        return idst
+    }
+    
+    static func == (lhs: TweetV1, rhs: TweetV1) -> Bool {
+        return lhs.idst == rhs.idst
+    }
+}
+
+typealias JSONItem = Dictionary<String, Any>
+typealias CompletionTweetsBlock = (Set<TweetV1>?) -> ()
+typealias CompletionInfoBlock = (JSONItem) -> ()
+
+class ViewController: UIViewController, UITextFieldDelegate {
+    
+    @IBOutlet weak var doTweetButton: UIButton!
+    @IBOutlet weak var myTweetsButton: UIButton!
+    @IBOutlet weak var homeButton: UIButton!
+    @IBOutlet weak var oauthButton: UIButton!
+    @IBOutlet weak var infoTextView: UITextView!
+    var dateFormatter: DateFormatter?
+    var dateFormatterOut: DateFormatter?
+    
+    var oauthswift: OAuth1Swift?
+    var isAuthorized: Bool? {
+        didSet{
+            if isAuthorized! {
+                oauthButton.isEnabled = false
+                homeButton.isEnabled = true
+                myTweetsButton.isEnabled = true
+                doTweetButton.isEnabled = true
+            }else{
+                oauthButton.isEnabled = true
+                homeButton.isEnabled = false
+                myTweetsButton.isEnabled = false
+                doTweetButton.isEnabled = false
+            }
+        }
+    }
+    
+    var myTweets: Set<TweetV1>! = []
+    var homeTweets: Set<TweetV1>! = []
+    var theLatestMineId: Int?
+    var theLatestHomeId: Int?
+    
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // Do any additional setup after loading the view, typically from a nib.
+        
+        dateFormatter = DateFormatter()
+        dateFormatterOut = DateFormatter()
+        dateFormatter!.dateFormat = "EEE MMM dd HH:mm:ss ZZZ yyyy"
+        dateFormatterOut!.dateFormat = "HH:mm MM/dd"
+        
+        infoTextView.keyboardDismissMode = .onDrag
+        self.tweetTextField.placeholder = "Update status here"
+        
+        //
+        oauthswift = OAuth1Swift(
+            consumerKey: consumerKey,
+            consumerSecret: consumerSec,
+            requestTokenUrl: "https://api.twitter.com/oauth/request_token",
+            authorizeUrl:    "https://api.twitter.com/oauth/authorize",
+            accessTokenUrl:  "https://api.twitter.com/oauth/access_token"
+        )
+        let access_token = UserDefaults.standard.value(forKey: "access_token") as? String
+        let access_sec = UserDefaults.standard.value(forKey: "access_sec") as? String
+        
+        if let token = access_token, let sec = access_sec {
+            oauthswift!.client.credential.oauthToken = token
+            oauthswift!.client.credential.oauthTokenSecret = sec
+            
+            isAuthorized = true
+        }else{
+            //isAuthorized = false
+        }
+    }
+    
+    func isAuthorizedX() -> Bool{
+        return oauthswift!.client.credential.oauthToken.lengthOfBytes(using: .utf8) != 0
+    }
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        // Dispose of any resources that can be recreated.
+    }
+    
+    @IBAction func doOAuth(_ sender: Any) {
+        // create an instance and retain it
+
+        guard let oauthswift = self.oauthswift else {
+            return
+        }
+        oauthswift.authorizeURLHandler = OAuthSwiftOpenURLExternally.sharedInstance
+        let _ = oauthswift.authorize(
+            withCallbackURL: URL(string: "http://oauthswift.herokuapp.com/callback/twitter")!,
+            success: { [weak self] credential, response, parameters in
+                self?.updateInfo("\(credential.oauthToken):\(credential.oauthTokenSecret)")
+                
+                UserDefaults.standard.setValue(credential.oauthToken, forKey: "access_token")
+                UserDefaults.standard.setValue(credential.oauthTokenSecret, forKey: "access_sec")
+                self?.isAuthorized = true
+        },
+            failure: { error in
+                print(error.description)
+        }
+        )
+    }
+    
+    func updateInfo(_ info: String){
+        DispatchQueue.main.async {
+            self.infoTextView.text = info
+        }
+    }
+    
+    @IBAction func updateMyHome(_ sender: Any) {
+        guard let _ = self.oauthswift else { return }
+        
+        let api = "https://api.twitter.com/1.1/statuses/home_timeline.json"
+        var parameters = ["include_rts" : "0",
+                          "trim_user" : "1",
+                          "count" : "20"]
+        if let latestId = self.theLatestHomeId {
+            parameters["since_id"] = String(latestId)
+        }
+        fetchTimeline(api: api, parameters: parameters) { [weak self](tweets) in
+            if let tweets = tweets, let weakSelf = self {
+                weakSelf.homeTweets = weakSelf.homeTweets.union(tweets)
+                let info  = weakSelf.homeTweets.reduce("Your Home:\n", { (x,y) in return "\(x)\n----\n\(y.text)\n\(weakSelf.dateFormatterOut!.string(from: y.time!))"})
+                weakSelf.updateInfo(info)
+            }
+        }
+    }
+    
+    @IBAction func updateMyTimeline(_ sender: Any) {
+        guard let _ = self.oauthswift else { return }
+        
+        let api = "https://api.twitter.com/1.1/statuses/user_timeline.json"
+        var parameters = ["screen_name": "@DxxxB000",
+                          "include_rts" : "0",
+                          "trim_user" : "1",
+                          "count" : "20"]
+        if let latestId = self.theLatestMineId {
+            parameters["since_id"] = String(latestId)
+        }
+        
+        fetchTimeline(api: api, parameters: parameters) { [weak self](tweets) in
+            if let tweets = tweets, let weakSelf = self {
+                weakSelf.myTweets = weakSelf.myTweets.union(tweets)
+                let info  = weakSelf.myTweets.reduce("Your Home:\n", { (x,y) in return "\(x)\n----\n\(y.text)\n\(weakSelf.dateFormatterOut!.string(from: y.time!))"})
+                weakSelf.updateInfo(info)
+            }
+        }
+    }
+    
+    func fetchTimeline(api: String, parameters: [String: String], completion: @escaping CompletionTweetsBlock) {
         guard let oauthswift = self.oauthswift else { return }
-
+        
         func parse(_ jsons: [JSONItem]){
             var tweets: Set<TweetV1> = []
             for json in jsons{
@@ -15,21 +183,33 @@ consumerSecret: "hc8tT5GMU47g5JFDIW7E8sCwx0yNMlmWiTdfe9018hvkQKsvhe",
                 if let user = json["user"] as? JSONItem {
                     userId = user["id"] as! Int
                 }
-                let tweet = TweetV1(idst: id, text: text, favc: favc, userId: userId)
+                let time = dateFormatter?.date(from: json["created_at"] as! String)
+                let tweet = TweetV1(idst: id, text: text, favc: favc, userId: userId, time: time)
                 tweets.insert(tweet)
             }
             
             completion(tweets)
         }
         
-        let _ = oauthswift.client.get(api, parameters:  ["include_rts" : "0",
-                                                         "trim_user" : "1",
-                                                         "count" : "20"],
-            success: { response in
-                let jsonDict = try? response.jsonObject()
-                let tweets = jsonDict as? [JSONItem]
-                parse(tweets!)
+        let _ = oauthswift.client.get(api, parameters: parameters, success: { response in
+            let jsonDict = try? response.jsonObject()
+            let tweets = jsonDict as? [JSONItem]
+            parse(tweets!)
         }, failure: { error in
             print(error)
         })
     }
+    
+    @IBOutlet weak var tweetTextField: UITextField!
+    @IBAction func doTweet(_ sender: Any){
+        guard let oauthswift = self.oauthswift else { return }
+        let status: String = tweetTextField.text!.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+        let api = "https://api.twitter.com/1.1/statuses/update.json?status=\(status)"
+        let _ = oauthswift.client.post(api, success:{[weak self] (res) in
+            self?.tweetTextField.text = ""
+            self?.tweetTextField.placeholder = "Send OK and try again."
+        },failure: {(error) in
+            
+        })
+    }
+}
